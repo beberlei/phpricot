@@ -1,12 +1,5 @@
 <?php
 
-if (!function_exists('__autoload')) {
-    function __autoload($class)
-    {
-        require_once __DIR__ . "/../../lib/" . str_replace("_", "/", $class) . ".php";
-    }
-}
-
 class PHPricot_ElementTest extends PHPUnit_Framework_TestCase
 {
     public function testName()
@@ -69,7 +62,7 @@ class PHPricot_ElementTest extends PHPUnit_Framework_TestCase
         $tag = new PHPricot_Nodes_Element('p', array());
 
         $this->assertFalse($tag->hasClass('foo'));
-        $this->addClass('foo');
+        $tag->addClass('foo');
         $this->assertTrue($tag->hasClass('foo'));
     }
 }

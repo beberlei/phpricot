@@ -66,11 +66,10 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
         return $out;
     }
 
-    public function attr($name)
+    public function attr($name, $value = null)
     {
         $name = strtolower($name);
-        if (func_num_args() == 2) {
-            $value = func_get_arg(1);
+        if ($value) {
             $this->attributes[$name] = $value;
 
             return $this;
@@ -156,5 +155,66 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
         }
 
         return $out;
+    }
+
+    /**
+     * Is this element matching a tag-name, id or classes description?
+     *
+     * @param string $tagName
+     * @param string $id
+     * @param string|array $classes
+     * @return bool
+     */
+    public function matching($tagName = null, $id = null, $classes = null, $attrs = null)
+    {
+        if ($tagName && $tagName != $this->name) {
+            return false;
+        }
+        if ($id && $id !== $this->attr('id')) {
+            return false;
+        }
+        if ($classes) {
+            foreach ((array)$classes AS $class) {
+                if (!$this->hasClass($class)) {
+                    return false;
+                }
+            }
+        }
+        if ($attrs) {
+            foreach ($attrs AS $name => $value) {
+                if ($this->attr($name) != $value) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public function anyDescendant($tagName, $id, $classes, $attrs)
+    {
+        $anyDescendants = array();
+        foreach ($this->childNodes AS $child) {
+            if ($child instanceof PHPricot_Nodes_Element) {
+                if ($child->matching($tagName, $id, $classes, $attrs)) {
+                    $anyDescendants[] = $child;
+                }
+                $anyDescendants = array_merge($anyDescendants,
+                    $child->anyDescendant($tagName, $id, $classes, $attrs));
+            }
+        }
+        return $anyDescendants;
+    }
+
+    public function directDescendant($tagName, $id, $classes, $attrs)
+    {
+        $directDescendants = array();
+        foreach ($this->childNodes AS $child) {
+            if ($child instanceof PHPricot_Nodes_Element) {
+                if ($child->matching($tagName, $id, $classes, $attrs)) {
+                    $directDescendants[] = $child;
+                }
+            }
+        }
+        return $directDescendants;
     }
 }

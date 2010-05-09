@@ -135,6 +135,7 @@ class PHPricot_Parser
         }
 
         $this->currentParent->childNodes[] = $element;
+        
         if (!$element->isSelfClosing()) {
             $this->currentParent = $element;
         

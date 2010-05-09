@@ -1,12 +1,5 @@
 <?php
 
-if (!function_exists('__autoload')) {
-    function __autoload($class)
-    {
-        require_once __DIR__ . "/../../lib/" . str_replace("_", "/", $class) . ".php";
-    }
-}
-
 class PHPricot_ParserTest extends PHPUnit_Framework_TestCase
 {
     public $p;
