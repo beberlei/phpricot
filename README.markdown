@@ -11,12 +11,12 @@ re-writes this AST into your ugly HTML with only minor changes:
 
 * All attributes will be enclosed by ""
 * Tags get lower-cased
-* Self-Closing Tags (currently) always get /> endings
+* Self-Closing Tags (currently) always get /&gt; endings
 * Multi-line tags are wrapped into a single line
-* Really broken tags like <a href="foo<a href="bar.html"> are separated
-  into <a href="foo"><a href="bar.html">
+* Really broken tags like &lt;a href="foo&lt;a href="bar.html"&gt; are separated
+  into &lt;a href="foo"&gt;&lt;a href="bar.html"&gt;
 * Closing tags with no matching opening tag are omitted.
-* Comments always get enclosed by <!-- -->
+* Comments always get enclosed by &lt;!-- --&gt;
 
 Additionally you can hook into events for each start tag, end tag, comment
 and text elements.
