@@ -18,8 +18,8 @@ re-writes this AST into your ugly HTML with only minor changes:
 * Closing tags with no matching opening tag are omitted.
 * Comments always get enclosed by &lt;!-- --&gt;
 
-Additionally you can hook into events for each start tag, end tag, comment
-and text elements.
+Using the AST you can then access the nodes using CSS Selectors, cloning parts of
+the jQuery API.
 
 PHPricot is motivated by Rubys HPricot but only a distantly related port.
 
