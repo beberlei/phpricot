@@ -1,0 +1,1081 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+    <head>
+<title>whitewashing.de :: Overview</title>
+        <meta name="verify-v1" content="XwteHG/OZWcV3UlioPLRt+ziLItJBzZSmVpkoTwilqk=" />
+        <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+        <meta name="Keywords" content="computer science, databases, mysql, php, web-development" />
+        <meta name="language" content="en" />
+
+        <link rel="shortcut icon" type="image/gif" href="/shared/images/icon.ico" />
+
+        <link rel="icon" type="image/gif" href="/shared/images/icon.ico" />
+
+        <link rel="alternate" type="application/rss+xml" href="/about/rss/all" title="Whitewashing.de - All Articles &amp; Links" />
+        <link rel="alternate" type="application/rss+xml" href="/about/rss/links" title="Whitewashing.de - Links" />
+        <link rel="alternate" type="application/rss+xml" href="/about/rss/articles" title="Whitewashing.de - Articles" />
+
+        <link href="/shared/css/whitewashing.css" media="screen" rel="stylesheet" type="text/css" >        <!--[if IE]>
+        <link href="/shared/css/whitewashing_ie.css" media="screen" rel="stylesheet" type="text/css" >        <![endif]-->
+
+        		<script language="javascript" type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js"></script>
+
+        <script language="javascript" type="text/javascript" src="/shared/js/whitewashing.js"></script>
+    </head>
+
+    <body>
+        <h1>whitewashing.de</h1>
+
+        <div id="content">
+            <div id="left">
+                <div id="menu">
+
+                    <ul>
+                        <li><a name="top" class="boxlink" href="/blog/"><img src="/shared/images/arrow.gif" border="0" alt=":: " />home</a></li>
+                        <li><a class="boxlink" href="/archive/"><img src="/shared/images/arrow.gif" border="0" alt=":: " />archives</a></li>
+                        <li><a class="boxlink" href="/about/"><img src="/shared/images/arrow.gif" border="0" alt=":: " />about</a></li>
+                        <li><a class="boxlink" href="/about/contact/"><img src="/shared/images/arrow.gif" border="0" alt=":: " />contact</a></ul>
+                    </ul>
+                </div>
+
+
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/129">Testing Database Locks with PHPUnit and Gearman</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            02. May 2010                        </div>
+
+                        <p>For the Beta 2 release of <a href="http://www.doctrine-project.org">Doctrine 2</a>
+
+we plan to integrate pessimistic Database-level locks across all the supported vendors
+(MySQL, Oracle, PostgreSql, IBM DB2 so far). This means row-level locking as defined
+in the ANSI SQL Standard using "SELECT .. FOR UPDATE" will be available optionally in DQL Queries and Finder methods.
+The Implementation of this extension to SELECT statements is rather trivial, however
+functional testing of this feature is not.</p>
+
+<p>A general approach would look like this:</p>
+
+<ol>
+<li>Run Query 1 and 2 with FOR UPDATE into the background</li>
+<li>Have both queries lock the row for a specified time x (using sleep)</li>
+<li>Verify that one of the two processes/threads runs approximately 2*x the lock time.</li>
+</ol>
+
+<p>Since PHP does not support process forking or threads naturally you run into
+a serious problem. How do you execute two database queries in parallel and verify that
+indeed one query is locking read access for the second one?</p>
+
+<p>Side note: There are some drawbacks to this testing approach. It could be that one
+background threads finishes the lock sleep already when the second just starts. The locking
+would work in these cases, however the lock time would not nearly be 2*x seconds,
+producing a test-failure. We are talking about a functional test though and I will accept
+a failure from time to time just to be 99% sure that locking works.</p>
+
+<p>Solving this problem with Gearman provides a pretty nice "real-world" example
+for the Job-Server that I wanted to share. This blog post contains
+a stripped down code-example from the Doctrine 2 testsuite. If you are interested,
+you can see the complete Gearman Locking Tests in
+<a href="http://github.com/beberlei/doctrine2/tree/lock-support/tests/Doctrine/Tests/ORM/Functional/Locking/">on GitHub</a>.</p>
+
+<p>Gearman allows to register worker processes with the job-server and offers clients to execute jobs on those workers in parallel.
+After installing the Gearman job-server and PHP pecl/gearman extension
+(<a href="http://toys.lerdorf.com/archives/51-Playing-with-Gearman.html">Rasmus Lerdorf has a post on installation</a>)
+we can go on writing our locking tests with Gearman.</p>
+
+<p>The first bit is the worker, a PHP script that tries to acquire a database lock
+and then sleeps for a second. The return value of this script is the
+total time required for acquiring the lock and sleeping.</p>
+
+<blockquote><pre>class LockAgentWorker
+{
+    public function findWithLock($job)
+    {
+        $fixture = $this-&gt;processWorkload($job); // setup doctrine in here
+
+        $s = microtime(true);
+        $this-&gt;em-&gt;beginTransaction();
+
+        $entity = $this-&gt;em-&gt;find($fixture['entityName'], $fixture['entityId'], $fixture['lockMode']);
+
+        sleep(1);
+        $this-&gt;em-&gt;rollback(); // clean up doctrine
+
+        return (microtime(true) - $s);
+    }
+}
+</pre></blockquote>
+
+<p>The glue-code for the worker script contains of the registering
+of the worker method with the job-server and a simple infinite loop:</p>
+
+<blockquote><pre>$lockAgent = new LockAgentWorker();
+
+$worker = new \GearmanWorker();
+$worker-&gt;addServer();
+$worker-&gt;addFunction("findWithLock", array($lockAgent, "findWithLock"));
+
+while($worker-&gt;work()) {
+    if ($worker-&gt;returnCode() != GEARMAN_SUCCESS) {
+        break;
+    }
+}
+
+</pre></blockquote>
+
+<p>We need two running workers for this to work, since one worker only processes one
+task at a time. Just open up two terminals and launch the php scripts. They will
+wait for their first task to process.</p>
+
+<p>Now we need to write our PHPUnit TestCase, which will contain a GearmanClient
+to execute two of the "findWithLock" in parallel. Our locking assertion
+will work like this:</p>
+
+<ol>
+<li>Register two tasks for the "findWithLock" method that access the same database row.</li>
+<li>Register a completed callback using "GearmanClient::setCompleteCallback()" that collects the run-time of the individual workers.</li>
+<li>Execute this tasks in parallel using "GearmanClient::runTasks()".</li>
+<li>Assert that the maximum run-time is around 2 seconds (since each worker sleeps 1 second)</li>
+
+</ol>
+
+<p>The code for this steps could look like:</p>
+
+<blockquote><pre>class GearmanLockTest extends \Doctrine\Tests\OrmFunctionalTestCase
+{
+    private $gearman = null;
+    private $maxRunTime = 0;
+    private $articleId;
+
+    public function testLockIsAquired()
+    {
+        // .. write fixture data into the database
+
+        $gearman = new \GearmanClient();
+        $gearman-&gt;addServer();
+        $gearman-&gt;setCompleteCallback(array($this, "gearmanTaskCompleted"));
+
+        $workload = array(); // necessary workload data to configure workers
+        $gearman-&gt;addTask("findWithLock", serialize($workload));
+        $gearman-&gt;addTask("findWithLock", serialize($workload));
+
+        $gearman-&gt;runTasks();
+
+        $this-&gt;assertTrue($this-&gt;maxRunTime &gt;= 2);
+    }
+
+    public function gearmanTaskCompleted($task)
+    {
+        $this-&gt;maxRunTime = max($this-&gt;maxRunTime, $task-&gt;data());
+    }
+}
+
+</pre></blockquote>
+
+<p>Now if both workers are waiting for processing the task we can run this
+test and get a green bar for a working lock support.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/129" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/129#comments">Comments (2)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/128">Doctrine 2 Beta 1 released</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            27. April 2010                        </div>
+
+                        <p>Today we are happy to announce that the first beta of <a href="http://www.doctrine-project.org/blog/doctrine-2-0-0-beta1-released">Doctrine 2</a> has been released and we fixed 165 issues kindly reported by several early adopters.</p>
+
+<p>You can grab the code from the Github project:</p>
+
+<pre><a href="http://github.com/doctrine/doctrine2/tree/2.0.0-BETA1">http://github.com/doctrine/doctrine2/tree/2.0.0-BETA1</a>
+git clone git://github.com/doctrine/doctrine2.git
+</pre>
+
+<p>Or download it from our website:</p>
+
+<pre><a href="http://www.doctrine-project.org/download#2_0">http://www.doctrine-project.org/download#2_0</a>
+</pre>
+
+<p>It is our believe that Doctrine 2 brings PHP ORMs to a new level. We
+are leaving behind the Active Record pattern because we think it
+hurts testability, project maintainability and is not a suitable abstraction (80/20) for
+models that exceed the complexity of a blog or otherwise simple web application.
+Instead we implemented a pure Data Mapper approach with help of the new Reflection
+functionalities of PHP 5.3, so your Domain Objects neither have to extend a base
+class nor implement an interface.</p>
+
+<p>We also dropped most of the magical features of Doctrine 1 in favour of
+a simple and standardized API that is loosely based on the <a href="http://en.wikipedia.org/wiki/Java_Persistence_API">Java Persistence API</a>,
+a technical standard for Object Relational Mappers. However we try not to
+blindly follow the "Programm PHP like Java" approach and and deviated from JPA
+where applicable to make the concepts fit better into the PHP environment, such as
+alternatively hydrating all results into nested array structures for very high read performance.</p>
+
+<p>The cornerstone of Doctrine 2 is the query language DQL. It allows to execute
+queries on the object level defined by your metadata in a similar fashion to SQL.
+You can even do Joins, Subselects and Aggregates and Group Clauses in DQL, eliminating
+the need to circumvent ORMs for more advanced SQL features.
+Nevertheless it is also possible to write plain SQL and let Doctrine 2 hydrate the results into an object graph.</p>
+
+<p>In the last three month since alpha 4 we have done considerable changes and integrated
+lots of feedback from our users. The most notable changes are:</p>
+
+<ul>
+<li>Allowing Constructors of your Domain Objects to have non-optional parameters.</li>
+<li>Allow to define a natural ordering of to Many Collections that is automatically enforced trough an SQL ORDER BY statement when retrieved from the database.</li>
+
+<li>Shipping the Symfony Console Component to replace our own Console Implementation</li>
+<li>New DQL syntax to load objects partially, omitting potentially expensive fields from retrieval for the current request.</li>
+<li>Changes to how bi-directional have to be defined in the mapping files.</li>
+<li>Several changes to the Events API inside the ORM, to make sure many possible extension scenarios work smoothly.</li>
+<li>Enhancements to our Console Tools</li>
+<li>Surpassed the 1000 unit-tests each running against Postgres, Mysql, Sqlite and Oci8 drivers.</li>
+<li>Moved from SVN to Git: <a href="http://github.com/doctrine/doctrine2">http://github.com/doctrine/doctrine2</a></li>
+</ul>
+
+<p>We also did several painful backwards incompatible changes that seemed necessary to
+clean up and optimize the API or allow the ORM to be even faster than before.
+The beta phase beginning today will not contain any larger BC breaks anymore,
+opening up this release for a broader testing audience.</p>
+
+<p>For the next iteration several enhancements are planned:</p>
+
+<ul>
+<li>Support for PDO IBM, IBM DB2, SqlSrv and PDO SqlSrv und MsSql drivers</li>
+<li>Pessimistic Lock Support (FOR UPDATE and SHARED)</li>
+<li>Support for Custom Hydration Modes</li>
+<li>Support for Custom Persister Implementations</li>
+<li>Support for handling very large collections of related objects without needing an in-memory representation of the collection</li>
+
+<li>Separation of Doctrine\Common, Doctrine\DBAL and Doctrine\ORM into three different projects</li>
+<li>Extend the documentation even further, adding quickstart tutorials, cookbook recipes and enhancing the existing chapters.</li>
+</ul>
+
+<p>We also plan to support several extensions for the 2.0 release such as:</p>
+
+<ul>
+<li>Migrations</li>
+<li>PHPUnit Database Testing Integration</li>
+<li>NestedSet Support</li>
+<li>Symfony 2 Support</li>
+
+<li>Zend Framework 2 Support</li>
+</ul>
+
+<p>Please try out the new Beta release If you find the time and leave your feedback in our
+<a href="http://www.doctrine-project.org/jira/secure/Dashboard.jspa">Issue Tracker</a>,
+the <a href="http://groups.google.com/group/doctrine-user">Mailing-List</a>
+or come discuss with us on Doctrine 2 on Freenode #doctrine-dev.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/128" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/128#comments">Comments (3)</a>
+
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/127">New Netbeans PHP CodeSniffer Plugin Version</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            18. April 2010                        </div>
+
+                        <p>This morning I took the time to merge several changes by <a href="http://manuel-pichler.de/">Manuel Piechler</a> into <a href="http://github.com/beberlei/netbeans-php-enhancements">my Github branch</a> of the CodeSniffer Plugin and released a new NBM file for you to <a href="http://github.com/beberlei/netbeans-php-enhancements/downloads">download</a>. Here are the changes done by Manuel:</p>
+
+<ul>
+   <li>Ability to specifiy the path to CodeSniffer Binary</li>
+
+   <li>Automatic Detection of all the installed Coding Standards</li>
+   <li>Fixed Automatic Binary Detection on Windows</li>
+</ul>
+
+<p>The only open TODO for this project is the possibility to specify different standards on a per project basis, currently you can only choose a global standard.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/127" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/127#comments">Comments (9)</a>
+
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/126">Resources for a PHP and Hudson CI Integration</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            07. February 2010                        </div>
+
+                        <p>Yesterday I finally had the time to setup my first continuous integration environment. Possible solutions for CI are <a href="http://phpundercontrol.org/about.html">phpUnderControl</a>,
+<a href="http://www.hudson-ci.org">Hudson</a> or <a href="http://www.arbitracker.org">Arbit</a>. Although phpUnderControl is the most wide-spread, but from I heard complex to setup/maintain, solution <s>supposedly a hack</s> and Arbit just in an early Alpha
+I decided to give Hudson a shoot. Another reason for this decision, I heard it has a simple plugin architecture and is easy to install and use.
+Additionally Hudson is easily integrated into <a href="http://www.netbeans.org">Netbeans</a> and <a href="http://www.redmine.org">Redmine</a>, and I use both tools
+regularly in development.</p>
+
+<p>My motivation to dive into CI is easily explained. I just never felt it was necessary to add a continuous integration enviroment
+to my projects, since I had one or two simple bash scripts that did the job. In general this is rather annoying, because they
+mostly only run PHPUnit and have to be done using a cronjob or manually, without any real process of notification. Additionally you have
+no way to navigate the test-results, code-coverage and no history of the last builds. For projects like <a href="http://www.doctrine-project.org">Doctrine 2</a>
+we have the additional requirement to support 4 different database platforms, i.e. 4 different PHPUnit configurations. Currently
+that is solved by me using a Bash script that iterates over the configuration file names and invokes PHPUnit. </p>
+
+<p>There are already some awesome sources how to get Hudson and PHP working. I'll list them here:</p>
+
+<ul>
+<li><a href="http://www.flickr.com/photos/sebastian_bergmann/sets/72157622541690849/">Sebastian Bergmann's Howto in Screenshots</a></li>
+<li><a href="http://luhman.org/blog/2009/12/16/installing-hudson-phing-phpunit-and-git-ubuntu">David Luhman's series on PHP and Hudson</a></li>
+<li><a href="http://blog.jepamedia.org/2009/10/28/continuous-integration-for-php-with-hudson/">Justin Palmers Guide to install PHP and Hudson (With Screenshots)</a></li>
+
+</ul>
+
+<p>All those guides are already awesome and I would recommend choosing one of those to install Hudson, I think i can't add anything new to those.
+I have used Sebastians Howto, however i also like the third one. David Luhmans guide adds lots of details that are important to get the
+different parts of a build process to work.</p>
+
+<p>Now what these tutorials all do is that they use a bash command to execute the build process or specifiy an Ant Build file. However there is also a Phing Build process plugin for Hudson that allows to specify the build.xml targets to execute in the process. From the "Available Plugins" list
+you can choose the "Phing plugin".</p>
+
+<p>After installation you have to configure the Phing install. The <a href="http://wiki.hudson-ci.org/display/HUDSON/Phing+Plugin">Phing Plugin Wiki Page</a>
+shows how to do this. You have to go to "Manage Hudson" => "Configure System" and look for Phing. There you find the dialog
+to configure your phing installations.</p>
+
+<p>In the context of choosing a build script for your project you can now choose "Phing" instead of Ant:</p>
+
+<p><img src="http://www.flickr.com/photos/sebastian_bergmann/4046549930/in/set-72157622541690849/" /></p>
+
+<p>You can enter the targets to build, for example on my local Hudson instance I only execute "test" for Doctrine 2, since
+I am not interested in the building and deployment onto the PEAR channel at this development stage.</p>
+
+<p>From inside Netbeans you can then start builds by pointing to the Hudson instance. See this tutorial
+by one of the <a href="http://blogs.sun.com/joshis/entry/hudson_integration_in_netbeans_6">Hudson + Netbeans Developers</a>. You
+can then start all the builds from inside Netbeans and be notified of the success or failure.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/126" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/126#comments">Comments (8)</a>
+
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/125">Application Lifecycle Management and Deployment with PEAR and PHAR (revisited) *UPDATE*</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            10. January 2010                        </div>
+
+                        <p>Some weeks ago <a href="http://www.whitewashing.de/blog/articles/123">I posted an article</a> on using PEAR and PHAR for application lifecycle management and deployment. Since then I have gotten some feedback through comments, but also discussed the topic with collegues. I have also optimized the approach quite considerably and even <a href="http://github.com/beberlei/pearanha">made an open-source project out of parts of it</a> and I want to share all that is new with you. First of all, yes the presented solution was somewhat complex, partly because it is still a proposed idea and definately up for optimizations. However I am still very convinced of my approach, something I should discuss in more detail.</p>
+
+<p>The only other two languages I have ever programmed something in with more than 50 lines of code are Java and C#. In both languages you can explicitly import different dependencies like libraries and frameworks by adding them to your application, i.e. in java you would add for example Spring as an MVC Web layer, Hibernate as an ORM and several other things to your project and directly bundle them in your executable. This is very easy to configure and maintain in IDEs like Netbeans or Eclipse (C# has the same with allowing you to attach DDLs of libraries to your project). It also makes for a much more straightforward deployment.</p>
+
+<p>In the PHP world this siutation was quite different (up to PHP 5.3) for several reasons:</p>
+
+<ul>
+    <li>You could not package a library into a single distributable file.</li>
+    <li>The PEAR installer as the only tool for updating and managing dependencies of your application by default installs into a system/global directory. This means dependencies your application uses are located in a completly different location than your application code.</li>
+    <li>You can't manage multiple versions of the same package with PEAR in this system directory, making it very hard to control servers with different applications.</li>
+    <li>The global directory with your application dependencies is most often not under version control, which makes deployment of applications with PEAR dependencies somewhat difficult.</li>
+</ul>
+
+<p>There are some solutions to this problems:</p>
+
+<ul>
+    <li>Don't use PEAR, but put all dependencies in your version control system.</li>
+    <li>Don't use PEAR, and bundle dependencies to your code in the build/deployment process.</li>
+    <li>Use PEAR like in the article described, on a per project basis.</li>
+</ul>
+
+<p>The solutions that don't use PEAR suffer from the disadvantage that you need to keep track of all the library and framework dependencies yourself and upgrade them yourself. This might not be such a huge problem from a first glance, but in my opinion many PHP applications and projects suffer from using either no framework/library or just exactly one. There is no real cherry-picking going on the PHP world, for example I would really like to use Zend Framework for the general application layout, but still use Doctrine for the Modelling and HTML Purifier for the Output Escaping. Certain tasks might then only be solvable with the help of eZ Components, all of which are then to some extend dependencies of my application. With <a href="http://pearhub.org/">PEARHUB</a> and <a href="http://pearfarm.org/">PEARFARM</a> on the horizon (<a href="http://blog.astrumfutura.com/archives/431-The-Democratisation-Of-PEAR-By-Pearfarm-and-Pearhub-or-About-Bloody-Time!.html">Read Padraic on this topic</a>) even more PHP code will be distributed using PEAR channels in the near future. My <a href="http://www.whitewashing.de/blog/articles/124">immutable DateTime</a> code for example makes for a great little open source library that could be distribued via PEAR, aswell as <a href="http://github.com/beberlei/yadif">Yadif</a> - a dependency injection container I am using extensivly.</p>
+
+<p>Question: Are you really going to manage all these dependencies correctly manually? Is everything up to date all the time, and upgradeable with ease?</p>
+
+<p>The PEAR driven solution then begins to look very desirable in this light, however it has a considerable disadvantage: The PEAR installer itself works on a system-wide/user-centric basis, making it impossible to manage dependencies of several applications using only one linux user. My little <a href="http://github.com/beberlei/pearanha">Pearanha</a> to the rescue: I have taken the PEAR installer code (which is distributed with all PHP installations across all systems) and put a new CLI tool on top of it. Its a very simple code-generator that allows to generate a re-configured PEAR installer script which only manages a single application in a given directory. This approach is also used by the symfony plugin mechanism, which internally uses the PEAR installer (did you know?).</p>
+
+<p>Lets revisit my blog application example <a href="<a href="http://www.whitewashing.de/blog/articles/123">from my previous PEAR post</a>, first install from <a href="http://github.com/beberlei/pearanha">Github</a> and make the "pearanha" file executable and put it in your PATH (A PEAR Server Channel will follow any time soon).
+
+<p>Now we need to have an existing application directory somewhere, for example <strong>/var/www/blog</strong> and then we can put Pearanha on top of it with:</p>
+
+<blockquote><pre>
+benny@desktop: pearanha generate-project <projects_vendor_directory>
+</pre></blockquote>
+
+<p>You then need to specifiy the project base dir and then the project style (for example Zend Framework or Manual) which prompts your for the directory that should be used for as the vendor/library directory that PEAR will install all the code in. You will also be prompted for a binary/scripts directory which will then hold a new PHP file for you, the file <strong>my_phpiranha</strong>.</p>
+
+<p><strong>Pro Argument:</strong> Switching to Pearanha can be done at any point in your application lifecycle. Just define an additional vendor directory for all the dependencies to go in and generate the applications pear installer and you are good to go.</p>
+
+<p>The generated script is your new application specific PEAR installer and you can begin to install all the required dependencies of your application:</p>
+
+<blockquote><pre>
+benny@desktop:~$ cd /var/www/blog
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha channel-discover pear.zfcampus.org
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha install zfcampus/zf-alpha
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha channel-discover htmlpurifier.org
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha install hp/HTMLPurifier
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha channel-discover pear.phpdoctrine.org
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha install pear.phpdoctrine.org/DoctrineORM-2.0.0
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha channel-discover components.ez.no
+benny@desktop:/var/www/blog$ ./vendor/pear/my_pearanha install ezc/ezcGraph
+</pre></blockquote>
+
+<p>All this stuff is now located in <strong>/var/www/blog/vendor</strong>. Again you can use PEARs complete upgrade, remove and install functionality for your application, now without the hazzle of having to create a linux user for each project you want to manage this way, which in my opinion is a considerable simplification. The complete application (including its dependencies) can then be put under version control and be readily packaged as a single executable PHAR file by your build process.</p>
+
+<p>As a side node, I did try Pyrus instead of PEAR for the same discussed purpose, however most of the current PEAR channels don't validate against Pyrus strict standards for the package.xml file. In the future this might change and a Pyrus based application installer will then be integrated into Pearanha.</p>
+
+<p><strong>UPDATE:</strong> I renamed PHPiranha to Pearanha as its more appropriate. Also after apinsteins comment on "pear config-create" I rewrote the generate-project parts to use the config-create functionality internally, which allowed me to throw away half of the self-written code. Thanks!</p>
+
+                        <small class="footer">
+                            <a href="/blog/articles/125" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/125#comments">Comments (8)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+
+                    <h2><a href="/blog/articles/124">Immutable DateTime Objects</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            08. January 2010                        </div>
+
+                        <p>One serious drawback of <a href="http://de.php.net/DateTime" target="_blank">PHPs DateTime extension</a> is the mutability of its instances. It can lead to serious bugs if a DateTime instance is passed between different
+functions and is modified at unexpected places. Additionally
+this possibly rules out several optimizations for scripts that make
+very heavy use of dates and could share references to equal timestamps.</p>
+
+<p><strong>Warning:</strong> All the code assumes that you work with one timezone only!</p>
+
+<p>The following code is an immutable version of PHP's DateTime.
+All setter methods throw an exception and add(),sub() and modify()
+clone the current instance, apply the operation and return
+the new instance.</p>
+
+<blockquote><pre>namespace Whitewashing\DateTime;
+
+class DateTime extends \DateTime
+{
+    /**
+     * To prevent infinite recursions
+     *
+     * @var bool
+     */
+    private static $_immutable = true;
+
+    public function add($interval)
+    {
+        if (self::$_immutable) {
+            self::$_immutable = false;
+            $newDate = clone $this;
+            $newDate->add($interval);
+            self::$_immutable = true;
+            return $newDate;
+        } else {
+            return parent::add($interval);
+        }
+    }
+
+    public function modify($modify)
+    {
+        if (self::$_immutable) {
+            self::$_immutable = false;
+            $newDate = clone $this;
+            $newDate->modify($modify);
+            self::$_immutable = true;
+            return $newDate;
+        } else {
+            return parent::modify($modify);
+        }
+    }
+
+    public function sub($interval)
+    {
+        if (self::$_immutable) {
+            self::$_immutable = false;
+            $newDate = clone $this;
+            $newDate->sub($interval);
+            self::$_immutable = true;
+            return $newDate;
+        } else {
+            return parent::sub($interval);
+        }
+    }
+
+    public function setDate($year, $month, $day) {
+        throw new ImmutableException();
+    }
+    public function setISODate($year, $week, $day=null) {
+        throw new ImmutableException();
+    }
+    public function setTime($hour, $minute, $second=null) {
+        throw new ImmutableException();
+    }
+    public function setTimestamp($timestamp) {
+        throw new ImmutableException();
+    }
+    public function setTimezone($timezone) {
+        throw new ImmutableException();
+    }
+}
+class ImmutableException extends \Exception
+{
+    public function __construct()
+    {
+        parent::__construct("Cannot modify Whitewashing\DateTime\DateTime instance, its immutable!");
+    }
+}
+</pre></blockquote>
+
+<p>Its not the prettiest code, but it works.</p>
+
+<p>A next optimization would be a <strong>DateFactory</strong> that
+manages DateTime instances by returning already existing instances
+for specific dates. This is not a perfect solution, since you won't
+be able to enforce a single instance when you are using the relative
+descriptive dates or when calculating with dates using add(), sub() and
+modify(), however for lots of dates created from a database
+or other external source it might be quite a powerful optimization
+depending on your use-case:</p>
+
+<blockquote><pre>namespace Whitewashing\DateTime;
+
+class DateFactory
+{
+    static private $_dates = array();
+
+    static public function create($hour, $minute, $second, $month, $day, $year)
+    {
+        $ts = mktime($hour, $minute, $second, $month, $day, $year);
+        if (!isset(self::$_dates[$ts])) {
+            self::$_dates[$ts] = new DateTime('@'.$ts);
+        }
+        return self::$_dates[$ts];
+    }
+
+    static public function createFromMysqlDate($mysqlDate)
+    {
+        list($date, $time) = explode(" ", $mysqlDate);
+        if($time == null) {
+            $hour = $minute = $second = 0;
+        } else {
+            list($hour, $minute, $second) = explode(":", $time);
+        }
+        list($year, $month, $day) = explode("-", $mysqlDate);
+        return self::create($hour, $minute, $second, $month, $day, $year);
+    }
+}</pre></blockquote>
+
+<p>This includes some date time calculations and date creation with mktime()
+and DateTimes unix timestamp capabilities to be able to work. Otherwise the
+sharing of instances could not be implemented. If you need to create shareable
+instances from other formats you could just create another creation method
+for it and convert the format for create() to be used.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/124" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/124#comments">Comments (4)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/123">Trying a Two Step PEAR/PHAR approach to develop and deploy</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            19. December 2009                        </div>
+
+                        <p>With PHP 5.3 the PHAR extension is a pretty powerful concept for all
+your deployment needs, however it does not tell the complete story.
+Frameworks, Libraries and many different of them are used throughout
+applications and in recent times people even began to chery-pick the
+best components from each of the frameworks and package them together.
+With Pirum being a simple PEAR channel server there is also momentum
+for projects to distribute their code via PEAR.</p>
+
+<p>However PEAR is mostly used in the server-wide configuration use-case,
+which is not very useful if you plan to distribute your complete
+application in one PHAR file. I just recently had the idea for this
+scenario, so please bear with me and add all the feedback and comments
+you can come up with. I tested this with the ongoing rewrite of my blog software.</p>
+
+<p>First we'll add a new user that we develop our application with:</p>
+
+<pre><code>sudo useradd -m -g www-data whitewashing
+sudo passwd whitewashing
+su - whitewashing
+</code></pre>
+
+<p>Now there is the possibility that with this user PHP and PEAR is not
+in your $PATH enviroment, so you might have to add it. In my case on
+Ubuntu i also had to switch the console from /bin/sh to /bin/bash for
+this user. Then we need to setup our application, I am going to use
+the Zend Framework project style here but with a little twist. We will add a distinction
+between vendor and project libraries by adding a <em>vendor</em>
+directory into the main folder.</p>
+
+<p>But first we create a folder for our application, and create a
+Zend Framework project in the subfolder "trunk", which will be
+the focus of our development.</p>
+
+<pre><code>whitewashing@desktop:~$ mkdir whitewashing
+whitewashing@desktop:~$ zf create project whitewashing/trunk
+Creating project at /home/whitewashing/whitewashing/trunk
+whitewashing@desktop:~$ mkdir whitewashing/trunk/vendor
+</code></pre>
+
+<p>Now we can configure an Apache virtual host to point to our
+/home/whitewashing/whitewashing/public directory, i call this
+"whitewashing-dev" add it to my /etc/hosts and can visit the dummy project page.</p>
+
+<p>We then configure our PEAR installation for the specific application
+user and re-configure the bin and php library paths:</p>
+
+<pre><code>whitewashing@desktop:~$ pear create-config /home/whitewashing/ .pearrc
+whitewashing@desktop:~$ pear config-set php_dir /home/whitewashing/whitewashing/trunk/vendor
+whitewashing@desktop:~$ pear config-set bin_dir /home/whitewashing/whitewashing/trunk/bin
+</code></pre>
+
+<p>This configuration assumes that we will install all our stuff into
+our development trunk. From there also the PEAR installed libraries
+might be copied into branches or tags. PEAR Project tests, configuration and web-files will still be put
+by default under $HOME/pear/*. We don't need them for our applications.</p>
+
+<p>Now we install all the dependencies our project needs, in this case Zend Framework,
+Doctrine 2, HTML Purifier:</p>
+
+<pre><code>whitewashing@desktop:~$ pear channel-discover pear.zfcampus.org
+whitewashing@desktop:~$ pear install zfcampus/zf-alpha
+whitewashing@desktop:~$ pear channel-discover htmlpurifier.org
+whitewashing@desktop:~$ pear install hp/HTMLPurifier
+whitewashing@desktop:~$ pear channel-discover pear.phpdoctrine.org
+whitewashing@desktop:~$ pear install pear.phpdoctrine.org/DoctrineORM-2.0.0
+</code></pre>
+
+<p>Now we have all three of the packages installed in our project folder
+<em>whitewashing/trunk/vendor</em>, see:</p>
+
+<pre><code>whitewashing@desktop:~$ ls -aFl whitewashing/trunk/vendor/
+total 680
+drwxr-xr-x  7 whitewashing www-data   4096 2009-12-13 14:45 ./
+drwxr-xr-x  8 whitewashing www-data   4096 2009-12-13 14:36 ../
+drwxr-xr-x  3 whitewashing www-data   4096 2009-12-13 14:43 .channels/
+-rw-r--r--  1 whitewashing www-data     57 2009-12-13 14:45 .depdb
+-rw-r--r--  1 whitewashing www-data      0 2009-12-13 14:45 .depdblock
+drwxr-xr-x  5 whitewashing www-data   4096 2009-12-13 14:45 Doctrine/
+-rw-r--r--  1 whitewashing www-data 582208 2009-12-13 14:45 .filemap
+drwxr-xr-x 20 whitewashing www-data   4096 2009-12-13 14:39 HTMLPurifier/
+-rw-r--r--  1 whitewashing www-data    629 2009-12-13 14:39 HTMLPurifier.autoload.php
+-rw-r--r--  1 whitewashing www-data    274 2009-12-13 14:39 HTMLPurifier.auto.php
+-rw-r--r--  1 whitewashing www-data    545 2009-12-13 14:39 HTMLPurifier.func.php
+-rw-r--r--  1 whitewashing www-data   9299 2009-12-13 14:39 HTMLPurifier.includes.php
+-rw-r--r--  1 whitewashing www-data    955 2009-12-13 14:39 HTMLPurifier.kses.php
+-rw-r--r--  1 whitewashing www-data   8831 2009-12-13 14:39 HTMLPurifier.php
+-rw-r--r--  1 whitewashing www-data  11901 2009-12-13 14:39 HTMLPurifier.safe-includes.php
+-rw-r--r--  1 whitewashing www-data      0 2009-12-13 14:45 .lock
+drwxr-xr-x  8 whitewashing www-data   4096 2009-12-13 14:43 .registry/
+drwxr-xr-x 59 whitewashing www-data   4096 2009-12-13 14:36 Zend/
+-rw-r--r--  1 whitewashing www-data  19537 2009-12-13 14:36 zf.php
+</code></pre>
+
+<p>And both Doctrine and ZF registered their binary CLi tools inside the
+<em>whitewashing/trunk/bin/</em>folder:</p>
+
+<pre><code>whitewashing@desktop:~$ ls -aFl bin/
+total 20
+drwxr-xr-x 2 whitewashing www-data 4096 2009-12-13 14:45 ./
+drwxr-xr-x 8 whitewashing www-data 4096 2009-12-13 14:36 ../
+-rwxr-xr-x 1 whitewashing www-data   50 2009-12-13 14:45 doctrine*
+-rwxr-xr-x 1 whitewashing www-data  169 2009-12-13 14:45 doctrine.php*
+-rwxr-xr-x 1 whitewashing www-data 1511 2009-12-13 14:36 zf*
+</code></pre>
+
+<p>We now have the full control over the versions of our dependencies,
+we can call "pear upgrade <library>" whenever we want to update one
+of the ZF, Doctrine or HtmlPurifier libraries inside our application.</p>
+
+<p>Now some magic is gonna happen, we start to develop our application and
+such which is all not really interesting for this topic. At some point
+we want to package it all up into a PHAR file and distribute it. We want to
+package our application in one big phar file. We also want
+to make sure that the configuration files in
+<em>whitewashing/trunk/application/configs/</em> are not distributed,
+but have to be created on the server and are kept that way. We could write
+an installer script for this configuration management.</p>
+
+<p>The reference for PHAR files is the PHP Manual for the Basics and Cal Evans'
+two posts (<a href="http://blog.calevans.com/2009/07/19/lessons-in-phar/">1</a>, <a href="http://blog.calevans.com/2009/07/26/packaging-zend-framework-as-a-phar-revisited/">2</a>) on this topic, aswell as <a href="http://geekmonkey.org/articles/PHP_Archives">a post on Geekmonkey</a>.
+Contrary to most other PHP extensions, PHAR has an extensive documentation,
+however its not organized terribly well. Also there are no real use-cases and scenarios
+discussed, methods are only looked at in isolation. Cals posts are very good
+on understanding how to package up different libraries, but there is no
+word on distributing web applications. That is where the Geekmonkey post
+comes in to wire it all together.</p>
+
+<p>For a Zend Framework application that should have both a web and a cli (cronjobs)
+entry point into the application we need a specific stub file for the PHAR
+bootstrapping. A stub is a little PHP script that is executed whenever your
+PHAR file is included into your php script. It is essentially a front-controller
+for your PHAR application. It also has mount capabilities that allow to import
+files or directories from outside into the PHAR context. This is a powerful
+feature that is required to distribute configurable applications like
+our blog.</p>
+
+<p>This screenshot shows how the application is currently structued in development mode.
+In production its structure should look like:</p>
+
+<pre><code>whitewashing
+|--application
+|  |--configs
+|     |-- my application config files are all here...
+|--bin
+|  |--whitewashing.php
+|--public
+|  |--index.php
+|  |--.htaccess
+|--whitewashing.phar
+</code></pre>
+
+<p>The whitewashing.php and index.php files are the application entry points that only
+include the phar file and trigger the application bootstrapping that will be included
+in the Stub file. They both look like:</p>
+
+<pre><code>&lt;?php
+define('EXTERNAL_APPLICATION_ROOT', __DIR__."/../");
+include EXTERNAL_APPLICATION_ROOT."/whitewashing.phar";
+</code></pre>
+
+<p>Including a PHAR file essentially has two conesequences:</p>
+
+<ul>
+<li>The PHAR path will be added to your include path.</li>
+<li>The stub file will be executed.</li>
+</ul>
+
+<p>Our application stub looks like this:</p>
+
+<pre><code>&lt;?php
+
+if(defined('EXTERNAL_APPLICATION_ROOT')) {
+    // Mount the external application/configs directory as config if it exists.
+    if (file_exists(EXTERNAL_APPLICATION_ROOT."/application/configs")) {
+        Phar::mount("application/configs", EXTERNAL_APPLICATION_ROOT."/application/configs");
+    }
+}
+
+/** Zend_Loader_Autoloader */
+require_once 'Zend/Loader/Autoloader.php';
+$autoloader = Zend_Loader_Autoloader::getInstance();
+
+if (php_sapi_name() == "cli") {
+    require_once 'bin/whitewashing.php';
+} else {
+    require_once 'public/index.php';
+}
+
+__HALT_COMPILER();
+</code></pre>
+
+<p>The first bit of the stub mounts the external application configs directory
+into the stub and hides possible directories that are present at this
+location in the PHAR file. This allows us to distribute our application
+with a default configuration, but allows any user to replace the configuration
+files to fit the application to his need.</p>
+
+<p>The second bit loads Zend Framework Autoloader that is required by the
+bootstrapping mechanism. The third bit decides wheater this request is executed from the CLI- or
+the Web-Entry point of the application. The fourth bit, <code>__HALT_COMPILER();</code> is
+a technically required call inside your stub-file.</p>
+
+<p>Now that we have a stub-file for our application, we can package it and
+distribute it. I am using a modified version of Cal Evans example for this.
+I have extracted his directory traversal to find all the relevant into
+a re-usable FilterIterator implementation. I <a href="https://gist.github.com/3b20264b857dbdabf526">pasted my package.php a Gist</a> on Github.
+Now this should probably be put into the build context of your application,
+possibly as a phing or ant task or something alike.</p>
+
+<p>Now what this build process does not manage is the creation of the
+application entry point php and .htaccess files, but since they won't
+ever change its easy to add them to the build directory for now.
+An even more sophisiticated version of the build script would
+lead to the creation of an additional tar.gz of the complete
+application folder. Our deployment process would then be as easy as:</p>
+
+<ul>
+<li>If the application is not installed yet, unpack the tarball into its location.</li>
+
+<li>If the application should be updated, just replace the PHAR file.</li>
+</ul>
+
+<p>If you need the ability to go back to any version of your application you could make use of symlinks.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/123" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/123#comments">Comments (7)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/122">Netbeans PHP CodeSniffer Plugin: Now with Options Dialog</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            14. November 2009                        </div>
+
+                        <p>Just two days before the <a href="http://www.phpconference.de">International PHP Conference 09</a> will start I got an email from <a href="http://github.com/alexandrehaguiar">alexandrehaguiar</a> that he forked my Netbeans PHP CodeSniffer plugin and added the long awaited Options screen. This is just awesome! This way I don't have to ask the Netbeans guys at IPC all the questions about how to implement it. I merged the changes back into my branch and released a new version which also fixed another small bug. For me it works with both Netbeans 6.7.1 and 6.8 Beta. I want to thank alexandre very much for this awesome contribution.</p>
+
+<p>What you can do now is chose the Coding Standard you want to use in an Options Dialog under the "Miscallenous" button. You can choose from a list of pre-defined standards, or even enter your own if you use one. Additionally you can disable that warning are shown, so that with any given coding standard you only see the errors.</p>
+
+<p align="center"><a href="http://cloud.github.com/downloads/beberlei/netbeans-php-enhancements/phpcsoptions.png"><img border="0" src="http://cloud.github.com/downloads/beberlei/netbeans-php-enhancements/phpcsoptions.png" width="540" /></a></p>
+
+<p>You can download the new version from the <a href="http://github.com/beberlei/netbeans-php-enhancements/downloads/">Github Project Downloads page</a>.</p>
+
+                        <small class="footer">
+                            <a href="/blog/articles/122" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/122#comments">Comments (21)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+
+                    <h2><a href="/blog/articles/121">PHP CodeSniffer for Netbeans v0.2</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            05. October 2009                        </div>
+
+                        <p>I finally found some time to spend some time on the <a href="http://github.com/beberlei/netbeans-php-enhancements/">PHP CodeSniffer for Netbeans plugin</a>. Previously the plugin used an unnecessary API which restricted the use to Netbeans 6.7.0 only. This API was removed so that the plugin should now work with all Netbeans Versions >= 6.7.0.</p>
+
+<p>Additionally when working the previous version would scan every PHP script on a file per file basis when the all projects or main projects filters were activated. This rendered made the plugin almost useless. In the current version scans of filters that contain more than one file are blocked. That means you will only see Coding Violations when you enable the "Current File" filter. Using any other filter will just do nothing and won't put your Netbeans in permanent hibernation mode (aka useless mode).</p>
+
+<p>There is also some preference <strong>"phpcs.codingStandard"</strong> using the <strong><a href="http://bits.netbeans.org/dev/javadoc/org-openide-util/org/openide/util/NbPreferences.html">NbPreferences API</a></strong> which allows to configure the coding standard. <s>However this feature was contributed by <a href="http://manuel-pichler.de/">Manuel Piechler</a> and I don't yet understand how I can manipulate it. Maybe someone knows how (*Looking in Mapis general direction*)?</s> By default the Zend Coding Standard is used.</p>
+
+<p><strong>Update:</strong> Coding Standard can be changed by hacking into the config file .netbeans/6.7/config/Preferences.properties setting "phpcs.CodingStandard=<STANDARD>". Additionally I fixed several bugs with the inline highlighting that did not refresh when lines in the file changed.</p>
+                        <small class="footer">
+                            <a href="/blog/articles/121" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/121#comments">Comments (18)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+
+                                                    <div class="box">
+                    <h2><a href="/blog/articles/120">Enums in PHP</a></h2>
+                    <div class="box-content">
+                        <div class="header">
+                            31. August 2009                        </div>
+
+                        <a href="http://blog.tobias-olry.de">A colleague of mine</a> complained
+about the missing support for Enums in PHP
+and how one often wants to have a variable that is constant and has
+one of several specific values. We came up with an elegant solution
+that we want to share, maybe its even helpful to you.</p>
+
+<p>If you want to implement Enum behaviour with
+a simple string or int value you end up with having to validate the values
+at several different locations in the code rather than being able to strictly enforce the Enum
+structure by using typehints.</p>
+
+<p>We discussed several approaches to this problem that all seemed a bit ugly in one or another way. For example the <strong>SplEnum</strong> class is a step in the right direction, however you can only use a type hint for "SplEnum" or add another inheritance layer. Also you
+have to implement different classes for each enum type, which requires you
+to implement a factory method for your enum to help with creation of the
+different types.</p>
+
+<p>We came up with a very simple Enum concept. It uses reflection
+in the constructor to check if the given value is a valid
+Enum value by checking it against all the defined constants of the
+implementing class and throws an Exception if it is not. The __toString()
+magic method is implemented to allow for simple checks of the enums value.
+Strict type-checks are not possible with this construct, however in
+our opinion it is a very elegant solution to enforce a limited set
+of specific values throughout your code-base.</p>
+
+<p>Here is the code plus a small example:</p>
+
+<blockquote><pre>abstract class MyEnum
+{
+    final public function __construct($value)
+    {
+        $c = new ReflectionClass($this);
+        if(!in_array($value, $c->getConstants())) {
+            throw IllegalArgumentException();
+        }
+        $this->value = $value;
+    }
+
+    final public function __toString()
+    {
+        return $this->value;
+    }
+}
+
+class Foo extends MyEnum
+{
+    const FOO = "foo";
+    const BAR = "bar";
+}
+
+$a = new Foo(Foo::FOO);
+$b = new Foo(Foo::BAR);
+$c = new Foo(Foo::BAR);
+
+if($a == Foo::FOO) {
+    echo "My value is Foo::FOO\n";
+} else {
+    echo "I dont match!\n";
+}
+
+if($a == $b) {
+    echo "a value equals b value!\n";
+}
+if($b == $c) {
+    echo "b value equals c value!\n";
+}</pre></blockquote>
+
+<p>Now you could nice things such as:</p>
+
+<blockquote><pre>function doStuff(Foo $foo) {
+    switch($foo) {
+        case Foo::FOO:
+            echo "do more here!\n";
+            break;
+        case Foo::BAR;
+            echo "evil stop!\n";
+            break;
+    }
+}
+
+doStuff($a);</pre></blockquote>
+
+<p>What are your thoughts?</p>
+                        <small class="footer">
+
+                            <a href="/blog/articles/120" class="nolink"><img src="/shared/images/arrow.gif" border="0" alt="::" /></a>
+                            Category: <strong>PHP</strong>,
+                            <a href="/blog/articles/120#comments">Comments (9)</a>
+                        </small>
+
+                    </div>
+                </div>
+
+                <div class="box">
+                    <div class="box-content">
+
+                        Haven't found what you were looking for? Don't Panic: There is more to look at in the <a href="archive/">archives</a>.
+                    </div>
+                </div>
+
+
+                <a href="#top"><img src="/shared/images/arrow.gif" border="0" alt="::" />Back To The Top</a>
+            </div>
+
+            <div id="right">
+
+                <div class="boxback">
+                    <a class="nolink" href="http://www.whitewashing.de/"><img src="/shared/images/logo.jpg" border="0" alt="Whitewashing.de :: Home" title="Whitewashing.de :: Home" /></a>
+                </div>
+
+                <div class="box">
+                    <h3>About Whitewashing.de</h3>
+                    <div class="box-content">
+                        <a href="/about/">Whitewashing</a> is the blog of Benjamin Eberlei and covers topics
+                        in computer science, databases and web-development and other topics of interest for the author.
+                        You can read about me at <a href="http://www.beberlei.de/">my personal page</a> or write a mail to
+                        kontakt at beberlei dot de.
+
+                                                <ul>
+
+                            <li><a href="/archive/category/computer">Computer Science</a></li>
+                            <li><a href="/archive/category/databases">Databases</a></li>
+                            <li><a href="/archive/category/econometrics">Econometrics</a></li>
+                            <li><a href="/archive/category/linux">Linux</a></li>
+                            <li><a href="/archive/category/php">PHP</a></li>
+                            <li><a href="/archive/category/programming">Programming</a></li>
+
+                            <li><a href="/archive/category/python">Python</a></li>
+                            <li><a href="/archive/category/webdesign">Webdesign</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                                <div class="box">
+                    <h3>Tags</h3>
+
+                    <div class="box-content">
+                    	<a class="tagcloud1" href="/tag/view/"></a>
+<a class="tagcloud1" href="/tag/view/Algorithms">Algorithms</a>
+<a class="tagcloud2" href="/tag/view/Calypso">Calypso</a>
+<a class="tagcloud1" href="/tag/view/CodeSniffer">CodeSniffer</a>
+<a class="tagcloud2" href="/tag/view/DependencyInjection">DependencyInjection</a>
+<a class="tagcloud1" href="/tag/view/DesignPatterns">DesignPatterns</a>
+<a class="tagcloud1" href="/tag/view/Django">Django</a>
+<a class="tagcloud2" href="/tag/view/Dojo">Dojo</a>
+
+<a class="tagcloud2" href="/tag/view/DTL">DTL</a>
+<a class="tagcloud1" href="/tag/view/eclipse">eclipse</a>
+<a class="tagcloud1" href="/tag/view/ezComponents">ezComponents</a>
+<a class="tagcloud1" href="/tag/view/Games">Games</a>
+<a class="tagcloud1" href="/tag/view/Inclued">Inclued</a>
+<a class="tagcloud1" href="/tag/view/Javascript">Javascript</a>
+<a class="tagcloud2" href="/tag/view/jQuery">jQuery</a>
+<a class="tagcloud2" href="/tag/view/MVC">MVC</a>
+<a class="tagcloud1" href="/tag/view/MySQL">MySQL</a>
+
+<a class="tagcloud1" href="/tag/view/PDepend">PDepend</a>
+<a class="tagcloud1" href="/tag/view/Performance">Performance</a>
+<a class="tagcloud1" href="/tag/view/PHPUnit">PHPUnit</a>
+<a class="tagcloud1" href="/tag/view/PUMA">PUMA</a>
+<a class="tagcloud1" href="/tag/view/Snippets">Snippets</a>
+<a class="tagcloud1" href="/tag/view/SOAP">SOAP</a>
+<a class="tagcloud1" href="/tag/view/WebServices">WebServices</a>
+<a class="tagcloud4" href="/tag/view/ZendFramework">ZendFramework</a>
+                    </div>
+
+                </div><div class="box">
+    <h3>Search</h3>
+    <div class="box-content">
+    <form enctype="application/x-www-form-urlencoded" action="/archive/search/" method="post">
+
+<input type="text" name="search" id="search" value="" class="field" size="25">
+
+<input type="submit" name="postsearch" id="postsearch" value="Search"></form>    </div>
+</div>
+            </div>
+
+            <br clear="all" />
+
+            <div id="footer">
+                Whitewashing.de is published by <a href="/about/contact/">Benjamin Eberlei</a>. All contents
+                are copyright &copy;2007-2010 by their respective authors.<br />
+
+                <p><a href="http://technorati.com/faves?sub=addfavbtn&amp;add=http://www.whitewashing.de"><img src="http://static.technorati.com/pix/fave/tech-fav-1.png" alt="Add to Technorati Favorites" /></a></p>
+                            </div>
+        </div>
+    </body>
+
+</html>
