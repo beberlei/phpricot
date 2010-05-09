@@ -79,6 +79,7 @@ class PHPricot_Parser
         $tag = strtolower($tag);
 
         $element = new PHPricot_Nodes_Element($tag, $attr, $this->currentContexts);
+        $element->parent = $this->currentParent;
 
         $this->currentParent->childNodes[] = $element;
         

@@ -63,6 +63,35 @@ is supported (excluding namespaces, pseudo elements and classes aswell as the si
     $query = new PHPricot_Query($html);
     $val = $query->find('p#foo')->attr('align', 'center')->attr('align');
 
+### Append or Prepend new HTML Elements
+
+    $query = new PHPricot_Query($html);
+    $query->find('.inner')->append('<p>Test</p>');
+    $query->find('.inner')->prepend('<p>Test</p>');
+
+### Replace Elements
+
+Replace the matched elements with the given HTML or PHPRicot_Query instance.
+
+    $html = '<div class="container">
+      <div class="inner first">Hello</div>
+      <div class="inner second">And</div>
+      <div class="inner third">Goodbye</div>
+    </div>';
+
+Using this PHPricot Code:
+
+    $query = new PHPricot_Query($html);
+    $query->find('.second')->replaceWith('<h2>New heading!</h2>');
+
+Leads to this result:
+
+    <div class="container">
+      <div class="inner first">Hello</div>
+      <h2>New heading</h2>
+      <div class="inner third">Goodbye</div>
+    </div>
+
 ## TODOS
 
 * Port all the parts of the jQuery API that apply to this use-case

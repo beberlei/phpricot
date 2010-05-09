@@ -37,7 +37,12 @@ class PHPricot_Query
 
     public function first()
     {
-        return new PHPricot_Query($this->_getFirstMatch());
+        try {
+            $first = $this->_getFirstMatch();
+        } catch(InvalidArgumentException $e) {
+            $first = array();
+        }
+        return new PHPricot_Query($first);
     }
 
     public function last()
@@ -46,9 +51,79 @@ class PHPricot_Query
         if (count($elements) > 0) {
             return new PHPricot_Query(array_pop($elements));
         } else {
-            throw new InvalidArgumentException('No element found, no last element could be selected from that.');
+            return new PHPricot_Query(array());
         }
     }
+
+    /**
+     * Get the parent of each element in the current set of matched elements.
+     *
+     * @return PHPricot_Query
+     */
+    public function parent()
+    {
+        $parents = array();
+        foreach ($this->_getChildElements() AS $element) {
+            if ($element->parent instanceof PHPricot_Nodes_Element) {
+                $parents[] = $element->parent;
+            }
+        }
+        return new PHPricot_Query($parents);
+    }
+
+    public function next()
+    {
+        $next = array();
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            for ($i = $pos+1; $i < count($element->parent->childNodes); $i++) {
+                if ($element->parent->childNodes[$i] instanceof PHPricot_Nodes_Element) {
+                    $next[] = $element->parent->childNodes[$i];
+                    break;
+                }
+            }
+        }
+        return new PHPricot_Query($next);
+    }
+
+    public function prev()
+    {
+        $prev = array();
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            for ($i = $pos-1; $i >= 0; $i--) {
+                if ($element->parent->childNodes[$i] instanceof PHPricot_Nodes_Element) {
+                    $prev[] = $element->parent->childNodes[$i];
+                    break;
+                }
+            }
+        }
+        return new PHPricot_Query($prev);
+    }
+
+    public function remove()
+    {
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            unset($element->parent->childNodes[$pos]);
+            $element->parent->childNodes = array_values($element->parent->childNodes);
+        }
+        return $this;
+    }
+
+    public function replaceWith($input)
+    {
+        if(!($input instanceof PHPricot_Query)) {
+            $input = new PHPricot_Query($input);
+        }
+
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            array_splice($element->parent->childNodes, $pos, 1, $input->getDocument()->childNodes);
+        }
+        return $this;
+    }
+
 
     /**
      * Append inputed nodes as last children of each matched element
@@ -80,6 +155,32 @@ class PHPricot_Query
         return $this;
     }
 
+    public function after($input)
+    {
+        if(!($input instanceof PHPricot_Query)) {
+            $input = new PHPricot_Query($input);
+        }
+
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            array_splice($element->parent->childNodes, $pos, 1, array_merge(array($element), $input->getDocument()->childNodes));
+        }
+        return $this;
+    }
+
+    public function before($input)
+    {
+        if(!($input instanceof PHPricot_Query)) {
+            $input = new PHPricot_Query($input);
+        }
+
+        foreach ($this->_getChildElements() AS $element) {
+            $pos = array_search($element, $element->parent->childNodes);
+            array_splice($element->parent->childNodes, $pos, 1, array_merge($input->getDocument()->childNodes, array($element)));
+        }
+        return $this;
+    }
+
     public function emptyChildren()
     {
         foreach ($this->_getChildElements() AS $element) {
@@ -96,6 +197,11 @@ class PHPricot_Query
         } catch(InvalidArgumentException $e) {
             return "";
         }
+    }
+
+    public function text()
+    {
+        return $this->getDocument()->toText();
     }
 
     public function find($cssSelector)

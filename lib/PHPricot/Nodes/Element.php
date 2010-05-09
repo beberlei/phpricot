@@ -21,6 +21,8 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
     public $childNodes = array();
     public $wasClosed = false;
 
+    public $parent;
+
     /**
      * @param string $name
      * @param array $attributes

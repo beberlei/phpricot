@@ -112,4 +112,123 @@ ETT;
 ETT;
         $this->assertEquals($expected, $query->toHtml());
     }
+
+    public function testRemoveJQuery()
+    {
+        $query = new PHPRicot_Query('<div class="container">
+  <div class="hello">Hello</div>
+  <div class="goodbye">Goodbye</div>
+</div>');
+
+        $query->search('.hello')->remove();
+
+        $expected = <<<ETT
+<div class="container">
+  
+  <div class="goodbye">Goodbye</div>
+</div>
+ETT;
+        $this->assertEquals($expected, $query->toHtml());
+    }
+
+    public function testReplaceWithJQuery()
+    {
+        $query = new PHPricot_Query('<div class="container">
+  <div class="inner first">Hello</div>
+  <div class="inner second">And</div>
+  <div class="inner third">Goodbye</div>
+</div>');
+
+        $query->search('.second')->replaceWith('<h2>New heading</h2>');
+
+        $expected = <<<ETT
+<div class="container">
+  <div class="inner first">Hello</div>
+  <h2>New heading</h2>
+  <div class="inner third">Goodbye</div>
+</div>
+ETT;
+        $this->assertEquals($expected, $query->toHtml());
+    }
+
+    public function testNext()
+    {
+        $query = new PHPricot_Query('<ul><li class="first">Foo</li><li>Bar</li><li>Baz</li></ul>');
+        $query->search('li.first')->next()->addClass('second')->next()->addClass('third');
+
+        $this->assertEquals(
+            '<ul><li class="first">Foo</li><li class="second">Bar</li><li class="third">Baz</li></ul>',
+            $query->toHtml()
+        );
+    }
+
+    public function testPrev()
+    {
+        $query = new PHPricot_Query('<ul><li>Bar</li><li class="last">Baz</li></ul>');
+        $query->search('li.last')->prev()->addClass('previous');
+
+        $this->assertEquals(
+            '<ul><li class="previous">Bar</li><li class="last">Baz</li></ul>',
+            $query->toHtml()
+        );
+    }
+
+    public function testParent()
+    {
+        $query = new PHPricot_Query('<ul><li>Bar</li><li>Baz</li></ul>');
+        $query->search('li')->parent()->addClass('foo');
+
+        $this->assertEquals(
+            '<ul class="foo"><li>Bar</li><li>Baz</li></ul>',
+            $query->toHtml()
+        );
+    }
+
+    public function testEmptyChildren()
+    {
+        $query = new PHPricot_Query('<ul><li>Bar</li><li class="last">Baz</li></ul>');
+        $query->search('ul')->emptyChildren();
+
+        $this->assertEquals('<ul></ul>', $query->toHtml());
+    }
+
+    public function testBefore()
+    {
+        $query = new PHPricot_Query('<div class="container">
+  <h2>Greetings</h2>
+  <div class="inner">Hello</div>
+  <div class="inner">Goodbye</div>
+</div>');
+        $query->search('.inner')->before('<p>Test</p>');
+
+        $expected = <<<ETT
+<div class="container">
+  <h2>Greetings</h2>
+  <p>Test</p><div class="inner">Hello</div>
+  <p>Test</p><div class="inner">Goodbye</div>
+</div>
+ETT;
+
+        $this->assertEquals($expected, $query->toHtml());
+    }
+
+    public function testAfter()
+    {
+        $query = new PHPricot_Query('<div class="container">
+  <h2>Greetings</h2>
+  <div class="inner">Hello</div>
+  <div class="inner">Goodbye</div>
+</div>');
+        $query->search('.inner')->after('<p>Test</p>');
+
+        $expected = <<<ETT
+<div class="container">
+  <h2>Greetings</h2>
+  <div class="inner">Hello</div><p>Test</p>
+  <div class="inner">Goodbye</div><p>Test</p>
+</div>
+ETT;
+
+        $this->assertEquals($expected, $query->toHtml());
+    }
 }
