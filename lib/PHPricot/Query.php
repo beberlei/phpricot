@@ -11,8 +11,11 @@
  * to kontakt@beberlei.de so I can send you a copy immediately.
  */
 
-class PHPricot_Query
+class PHPricot_Query implements Countable
 {
+    /**
+     * @var PHPricot_Document
+     */
     private $doc;
 
     public function __construct($input)
@@ -22,7 +25,7 @@ class PHPricot_Query
             $doc = $parser->parse($input);
         } else if($input instanceof PHPricot_Document) {
             $doc = $input;
-        } else if($input instanceof PHPricot_Nodes_Element) {
+        } else if($input instanceof PHPricot_Nodes_Node) {
             $doc = new PHPricot_Document();
             $doc->childNodes[] = $input;
         } else if(is_array($input)) {
@@ -314,5 +317,10 @@ class PHPricot_Query
     public function getDocument()
     {
         return $this->doc;
+    }
+
+    public function count()
+    {
+        return count($this->doc->childNodes);
     }
 }
