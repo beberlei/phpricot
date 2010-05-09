@@ -36,15 +36,32 @@ you find the time).
 
 ## Usage
 
-Usage is simple:
+### Parse and Render HTML
 
     $p = new PHPricot_Parser();
     $doc = $p->parse($html);
     echo $doc->toHtml(); // render the AST to html
     echo $doc->toText(); // echo a text representation of your html
 
+### Modify Existing Nodes
+
+You can modify Nodes by changing their properties. A tag is represented
+by the `PHPricot_Nodes_Element` with the properties:
+
+    $element->name = "p";
+    $element->attributes['class'] = "foo";
+    $element->childNodes[] = $otherNode;
+
+### Add New Nodes
+
+You can create new nodes of type "Element", "Text" or "Comment" by instantiating
+the appropriate node classes and attaching them to the `PHPricot_Document` instance
+or its contained nodes.
+
+### Registering Listeners
+
 This however does not modify your HTML at all (other than the changes described above).
-You can register events by calling the parser:
+You can register listeners to events called by the parser:
 
     $p = new PHPRicot_Parser();
     $p->addListener(new PHPricot_Listeners_DebugNodes());
@@ -57,6 +74,8 @@ There are four interfaces that act as marker for the four different events occou
 * PHPricot_Listeners_TextListener for "text" tokens
 * PHPricot_Listeners_CommentListener for "comment" tokens
 
+### Example: Search For Tags
+
 You can for example use the SearchTags listener to get find all links in a document:
 
     $search = new PHPricot_Listeners_SearchTags(array('a'));
@@ -68,6 +87,20 @@ You can for example use the SearchTags listener to get find all links in a docum
     foreach ($search->getTags('a') AS $a) {
         $urls[] = $a->attributes['href'];
     }
+
+### Example: Add a class
+
+    $search = new PHPricot_Listeners_SearchTags(array('p'));
+    $p = new PHPRicot_Parser();
+    $p->addListener($search);
+    $doc = $p->parse($html);
+
+    $urls = array();
+    foreach ($search->getTags('p') AS $p) {
+        $p->attributes['class'] = "Foo";
+    }
+
+    $html = $doc->toHtml();
 
 ## TODOS
 
