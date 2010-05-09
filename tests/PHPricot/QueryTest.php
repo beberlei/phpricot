@@ -66,4 +66,50 @@ class PHPricot_QueryTest extends PHPUnit_Framework_TestCase
 
         $this->assertEquals('<ul><li>foo</li><li class="bar">bar</li></ul>', $query->toHtml());
     }
+
+    public function testAppend()
+    {
+        $query = new PHPRicot_Query('<body><p>foo</p><p>bar</p></body>');
+        $query->search('body')->append('<img src="foo.gif" />');
+
+        $this->assertEquals('<body><p>foo</p><p>bar</p><img src="foo.gif" /></body>', $query->toHtml());
+    }
+
+    public function testAppendJQuery()
+    {
+        $query = new PHPricot_Query('<h2>Greetings</h2>
+<div class="container">
+  <div class="inner">Hello</div>
+  <div class="inner">Goodbye</div>
+</div>');
+        $query->search('.inner')->append('<p>Test</p>');
+
+        $expected = <<<ETT
+<h2>Greetings</h2>
+<div class="container">
+  <div class="inner">Hello<p>Test</p></div>
+  <div class="inner">Goodbye<p>Test</p></div>
+</div>
+ETT;
+        $this->assertEquals($expected, $query->toHtml());
+    }
+
+    public function testPrependJQuery()
+    {
+        $query = new PHPricot_Query('<h2>Greetings</h2>
+<div class="container">
+  <div class="inner">Hello</div>
+  <div class="inner">Goodbye</div>
+</div>');
+        $query->search('.inner')->prepend('<p>Test</p>');
+
+        $expected = <<<ETT
+<h2>Greetings</h2>
+<div class="container">
+  <div class="inner"><p>Test</p>Hello</div>
+  <div class="inner"><p>Test</p>Goodbye</div>
+</div>
+ETT;
+        $this->assertEquals($expected, $query->toHtml());
+    }
 }

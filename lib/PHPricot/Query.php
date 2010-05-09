@@ -50,6 +50,54 @@ class PHPricot_Query
         }
     }
 
+    /**
+     * Append inputed nodes as last children of each matched element
+     *
+     * @param  string|PHPricot_Query|PHPricot_Nodes_Node $input
+     * @return PHPricot_Query
+     */
+    public function append($input)
+    {
+        if(!($input instanceof PHPricot_Query)) {
+            $input = new PHPricot_Query($input);
+        }
+        $childNodes = $input->getDocument()->childNodes;
+        foreach ($this->_getChildElements() AS $element) {
+            $element->childNodes = array_merge($element->childNodes, $childNodes);
+        }
+        return $this;
+    }
+
+    public function prepend($input)
+    {
+        if(!($input instanceof PHPricot_Query)) {
+            $input = new PHPricot_Query($input);
+        }
+        $childNodes = $input->getDocument()->childNodes;
+        foreach ($this->_getChildElements() AS $element) {
+            $element->childNodes = array_merge($childNodes, $element->childNodes);
+        }
+        return $this;
+    }
+
+    public function emptyChildren()
+    {
+        foreach ($this->_getChildElements() AS $element) {
+            $element->childNodes = array();
+        }
+        return $this;
+    }
+
+    public function html()
+    {
+        try {
+            $first = $this->_getFirstMatch();
+            return $first->html();
+        } catch(InvalidArgumentException $e) {
+            return "";
+        }
+    }
+
     public function find($cssSelector)
     {
         return $this->search($cssSelector);
