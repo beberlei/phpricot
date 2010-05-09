@@ -85,7 +85,7 @@ You can for example use the SearchTags listener to get find all links in a docum
 
     $urls = array();
     foreach ($search->getTags('a') AS $a) {
-        $urls[] = $a->attributes['href'];
+        $urls[] = $a->attr('href');
     }
 
 ### Example: Add a class
@@ -97,14 +97,24 @@ You can for example use the SearchTags listener to get find all links in a docum
 
     $urls = array();
     foreach ($search->getTags('p') AS $p) {
-        $p->attributes['class'] = "Foo";
+        $p->addClass('foo');
     }
 
     $html = $doc->toHtml();
 
+### Element API
+
+Elements (Tags) have a jQuery like API to modify attributes:
+
+* addClass()
+* removeClass()
+* hasClass()
+* attr()
+* removeAttr()
+
 ## TODOS
 
 * Integrate a CSS Selector Parser to find `Element` Tag nodes
-* Add Traversing API
+* Add jQuery like API to nodes and Document
 * Add HTML context details (what tags are are really HTML tags)
 * Attempt to fix some broken HTML if possible

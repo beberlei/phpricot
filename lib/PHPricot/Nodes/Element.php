@@ -57,13 +57,85 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
     /**
      * @return string
      */
-    public function innerHtml()
+    public function html()
     {
         $out = '';
         foreach ($this->childNodes AS $child) {
             $out .= $child->toHtml();
         }
         return $out;
+    }
+
+    public function attr($name)
+    {
+        $name = strtolower($name);
+        if (func_num_args() == 2) {
+            $value = func_get_arg(1);
+            $this->attributes[$name] = $value;
+
+            return $this;
+        } else if (isset($this->attributes[$name])) {
+            return $this->attributes[$name];
+        }
+        return null;
+    }
+
+    public function removeAttr($name)
+    {
+        $name = strtolower($name);
+        unset($this->attributes[$name]);
+    }
+
+    public function addClass($name)
+    {
+        $classes = $this->attr('class');
+        if ($classes) {
+            $classes = explode(" ", $classes);
+        } else {
+            $classes = array();
+        }
+        
+        if (!in_array($name, $classes)) {
+            $classes[] = $name;
+            $this->attr('class', implode(" ", $classes));
+        }
+        return $this;
+    }
+
+    public function removeClass($name)
+    {
+        $classes = $this->attr('class');
+        if ($classes) {
+            $classes = array_flip(explode(" ", $classes));
+            unset($classes[$name]);
+            $this->attr('class', implode(" ", array_flip($classes)));
+        }
+        return $this;
+    }
+
+    public function hasClass($name)
+    {
+        $classes = $this->attr('class');
+        if ($classes) {
+            $classes = explode(" ", $classes);
+            return array_search($name, $classes) !== false;
+        }
+        return false;
+    }
+
+    public function toggleClass($name)
+    {
+        if ($this->hasClass($name)) {
+            $this->removeClass($name);
+        } else {
+            $this->addClass($name);
+        }
+        return $this;
+    }
+
+    public function val()
+    {
+        throw new BadMethodCallException('Not yet implemented');
     }
 
     public function toText()
