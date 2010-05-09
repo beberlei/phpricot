@@ -9,14 +9,14 @@ PHPricot to the rescue, using the pecl/html_parse extension based on the EKHtml 
 an Abstract Syntax Tree of your HTML, no matter how ugly it is, and
 re-writes this AST into your ugly HTML with only minor changes:
 
-    * All attributes will be enclosed by ""
-    * Tags get lower-cased
-    * Self-Closing Tags (currently) always get /> endings
-    * Multi-line tags are wrapped into a single line
-    * Really broken tags like <a href="foo<a href="bar.html"> are separated
-      into <a href="foo"><a href="bar.html">
-    * Closing tags with no matching opening tag are omitted.
-    * Comments always get enclosed by <!-- -->
+* All attributes will be enclosed by ""
+* Tags get lower-cased
+* Self-Closing Tags (currently) always get /> endings
+* Multi-line tags are wrapped into a single line
+* Really broken tags like <a href="foo<a href="bar.html"> are separated
+  into <a href="foo"><a href="bar.html">
+* Closing tags with no matching opening tag are omitted.
+* Comments always get enclosed by <!-- -->
 
 Additionally you can hook into events for each start tag, end tag, comment
 and text elements.
