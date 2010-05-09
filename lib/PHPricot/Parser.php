@@ -28,63 +28,21 @@ class PHPricot_Parser
     private $currentParent = null;
 
     /**
+     * Tags can be in contects which are defined by certain comment sections
+     *
+     * A context is started by a comment <!-- BEGIN contextName( contextId) --> and
+     * ended by <!-- END contextName -->. A context is always unique, if no id is given
+     * it is "true"
+     *
      * @var array
      */
-    private $listeners = array();
+    private $currentContexts = array();
 
-    /**
-     * @var array
-     */
-    private $events = array(
-        'startTag' => array(),
-        'endTag' => array(),
-        'comment' => array(),
-        'text' => array(),
-    );
-
-    public function __construct(array $listeners = array())
+    public function __construct()
     {
         if (!extension_loaded('html_parse')) {
             throw new PHPricot_Exception("pecl/html_parse is not installed.");
         }
-
-        foreach ($listeners AS $listener) {
-            $this->addListener($listener);
-        }
-    }
-
-    /**
-     * @param PHPricot_Listeners_IListener $listener
-     */
-    public function addListener(PHPricot_Listeners_IListener $listener)
-    {
-        $name = $listener->getName();
-        $this->listeners[$name] = $listener;
-        
-        if ($listener instanceof PHPricot_Listeners_StartTagListener) {
-            $this->events['startTag'][$name] = $listener;
-        }
-        if ($listener instanceof PHPricot_Listeners_EndTagListener) {
-            $this->events['endTag'][$name] = $listener;
-        }
-        if ($listener instanceof PHPricot_Listeners_CommentListener) {
-            $this->events['comment'][$name] = $listener;
-        }
-        if ($listener instanceof PHPricot_Listeners_TextListener) {
-            $this->events['text'][$name] = $listener;
-        }
-    }
-
-    /**
-     * @param  string $name
-     * @return PHPricot_Listeners_IListener
-     */
-    public function getListener($name)
-    {
-        if (!isset($this->listeners[$name])) {
-            throw new InvalidArgumentException("No listener with name '".$name."' registered with the parser.");
-        }
-        return $this->listeners[$name];
     }
 
     /**
@@ -113,12 +71,6 @@ class PHPricot_Parser
     {
         $textNode = new PHPricot_Nodes_Text($data);
         $this->currentParent->childNodes[] = $textNode;
-
-        if (count($this->events['text'])) {
-            foreach ($this->events['text'] AS $listener) {
-                $listener->text($textNode);
-            }
-        }
     }
 
     public function startTag($tag, $attr)
@@ -126,13 +78,7 @@ class PHPricot_Parser
         $attr = array_reverse($attr, true); // funny bit
         $tag = strtolower($tag);
 
-        $element = new PHPricot_Nodes_Element($tag, $attr);
-
-        if (count($this->events['startTag'])) {
-            foreach ($this->events['startTag'] AS $listener) {
-                $listener->startTag($element);
-            }
-        }
+        $element = new PHPricot_Nodes_Element($tag, $attr, $this->currentContexts);
 
         $this->currentParent->childNodes[] = $element;
         
@@ -177,12 +123,6 @@ class PHPricot_Parser
         
         $this->currentParent->wasClosed = true;
 
-        if (count($this->events['endTag'])) {
-            foreach ($this->events['endTag'] AS $listener) {
-                $listener->endTag($this->currentParent);
-            }
-        }
-
         if (count($this->stack)) {
             $this->currentParent = end($this->stack);
         } else {
@@ -192,13 +132,14 @@ class PHPricot_Parser
 
     public function comment($comment)
     {
+        $parts = explode(" ", trim($comment));
+        if ($parts[0] == "BEGIN" && isset($parts[1])) {
+            $this->currentContexts[$parts[1]] = (isset($parts[2])) ? $parts[2] : true;
+        } else if ($parts[0] == "END" && isset($parts[1])) {
+            unset($this->currentContexts[$parts[1]]);
+        }
+
         $comment = new PHPricot_Nodes_Comment($comment);
         $this->currentParent->childNodes[] = $comment;
-
-        if (count($this->events['comment'])) {
-            foreach ($this->events['comment'] AS $listener) {
-                $listener->comment($comment);
-            }
-        }
     }
 }

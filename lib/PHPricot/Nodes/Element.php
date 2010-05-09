@@ -17,6 +17,7 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
 
     public $name;
     public $attributes;
+    public $contexts;
     public $childNodes = array();
     public $wasClosed = false;
 
@@ -24,9 +25,10 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
      * @param string $name
      * @param array $attributes
      */
-    function __construct($name, array $attributes) {
+    function __construct($name, array $attributes, array $contexts = array()) {
         $this->name = $name;
         $this->attributes = $attributes;
+        $this->contexts = $contexts;
     }
 
     public function isSelfClosing()

@@ -67,6 +67,11 @@ class PHPricot_ParserTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('<div><p></p><p></p></div>', $this->p->parse('<div><p></p></p></p><p></p></div>')->toHtml());
     }
 
+    public function testBeginClose()
+    {
+        $this->assertEquals('', $this->p->parse('</p>')->toHtml());
+    }
+
     public function testAttributeOrder()
     {
         $this->assertEquals(
@@ -76,20 +81,16 @@ class PHPricot_ParserTest extends PHPUnit_Framework_TestCase
 
     public function testContextNodes()
     {
-        $context = new PHPricot_Listeners_CommentContext();
-        $search = new PHPricot_Listeners_SearchTags(array('p'));
-        $this->p->addListener($context);
-        $this->p->addListener($search);
-
         $doc = $this->p->parse('<!-- BEGIN foo 1 --><p id="foo"><!-- END foo --><p id="bar">');
 
-        $ps = $search->getTags('p');
-        $this->assertEquals(2, count($ps));
-        foreach ($ps AS $p) {
-            if ($p->attributes['id'] == 'foo') {
-                $this->assertEquals(array('foo' => 1), $context->getContexts($p));
-            } else if ($p->attributes['id'] == 'bar') {
-                $this->assertEquals(array(), $context->getContexts($p));
+        foreach ($doc->childNodes AS $child) {
+            if ($child instanceof PHPricot_Nodes_Element) {
+                $p = $child;
+                if ($p->attributes['id'] == 'foo') {
+                    $this->assertEquals(array('foo' => 1), $p->contexts);
+                } else if ($p->attributes['id'] == 'bar') {
+                    $this->assertEquals(array(), $p->contexts);
+                }
             }
         }
     }

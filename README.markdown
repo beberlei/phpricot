@@ -38,83 +38,33 @@ you find the time).
 
 ### Parse and Render HTML
 
-    $p = new PHPricot_Parser();
-    $doc = $p->parse($html);
-    echo $doc->toHtml(); // render the AST to html
-    echo $doc->toText(); // echo a text representation of your html
+    $query = new PHPricot_Query($html);
+    echo $query->toHtml(); // render the AST to html
+    echo $query->getDocument()->toText(); // echo a text representation of your html
 
-### Modify Existing Nodes
+### Search using CSS Selectors
 
-You can modify Nodes by changing their properties. A tag is represented
-by the `PHPricot_Nodes_Element` with the properties:
+PHPricot supports CSS Selectors to find elements in the AST. A subset of the CSS 3 specification
+is supported (excluding namespaces, pseudo elements and classes aswell as the sibling operator ~).
 
-    $element->name = "p";
-    $element->attributes['class'] = "foo";
-    $element->childNodes[] = $otherNode;
+    $query = new PHPRicot_Query($html);
+    $links = $query->find('a.selected');
 
-### Add New Nodes
+### Add, Remove, or toggle a class
 
-You can create new nodes of type "Element", "Text" or "Comment" by instantiating
-the appropriate node classes and attaching them to the `PHPricot_Document` instance
-or its contained nodes.
+    $query = new PHPRicot_Query($html);
+    $query->find('p')->addClass('foo')
+                     ->removeClass('bar')
+                     ->toggleClass('baz');
+    $html = $query->toHtml();
 
-### Registering Listeners
+### Access and modify attributes
 
-This however does not modify your HTML at all (other than the changes described above).
-You can register listeners to events called by the parser:
-
-    $p = new PHPRicot_Parser();
-    $p->addListener(new PHPricot_Listeners_DebugNodes());
-    $doc = $p->parse($html);
-
-There are four interfaces that act as marker for the four different events occouring:
-
-* PHPricot_Listeners_StartTagListener for "startTag" tokens
-* PHPricot_Listeners_EndTagListener for "endTag" tokens
-* PHPricot_Listeners_TextListener for "text" tokens
-* PHPricot_Listeners_CommentListener for "comment" tokens
-
-### Example: Search For Tags
-
-You can for example use the SearchTags listener to get find all links in a document:
-
-    $search = new PHPricot_Listeners_SearchTags(array('a'));
-    $p = new PHPRicot_Parser();
-    $p->addListener($search);
-    $doc = $p->parse($html);
-
-    $urls = array();
-    foreach ($search->getTags('a') AS $a) {
-        $urls[] = $a->attr('href');
-    }
-
-### Example: Add a class
-
-    $search = new PHPricot_Listeners_SearchTags(array('p'));
-    $p = new PHPRicot_Parser();
-    $p->addListener($search);
-    $doc = $p->parse($html);
-
-    $urls = array();
-    foreach ($search->getTags('p') AS $p) {
-        $p->addClass('foo');
-    }
-
-    $html = $doc->toHtml();
-
-### Element API
-
-Elements (Tags) have a jQuery like API to modify attributes:
-
-* addClass()
-* removeClass()
-* hasClass()
-* attr()
-* removeAttr()
+    $query = new PHPricot_Query($html);
+    $val = $query->find('p#foo')->attr('align', 'center')->attr('align');
 
 ## TODOS
 
-* Integrate a CSS Selector Parser to find `Element` Tag nodes
-* Add jQuery like API to nodes and Document
+* Port all the parts of the jQuery API that apply to this use-case
 * Add HTML context details (what tags are are really HTML tags)
 * Attempt to fix some broken HTML if possible
