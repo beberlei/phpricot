@@ -142,6 +142,15 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
     public function toText()
     {
         $out = '';
+
+        if ($this->name == 'h1') {
+            $out .= "\n" . str_repeat('*', 65) . "\n";
+        } else if ($this->name == 'h2') {
+            $out .= "\n" . str_repeat('-', 65) . "\n";
+        } else if ($this->name == 'li') {
+            $out .= " * ";
+        }
+
         foreach ($this->childNodes AS $child) {
             $out .= $child->toText();
         }
@@ -150,10 +159,20 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
             $out .= "\n";
         } else if ($this->name == 'p') {
             $out .= "\n\n";
-        } else if ($this->name == 'a' && isset($this->attributes['href'])) {
-            $out .= "[#" . $this->attributes['href'] . "]";
+        } else if ($this->name == 'a' && isset($this->attributes['href']) && strpos($this->attributes['href'], "#") !== 0) {
+            $out .= "(" . $this->attributes['href'] . ")";
         } else if ($this->name == 'img' && isset($this->attributes['src'])) {
             $out .= "[image:" . $this->attributes['src'] . "]";
+        } else if ($this->name == 'h1') {
+            $out .= "\n" . str_repeat('*', 65) . "\n\n";
+        } else if (in_array($this->name, array('h2', 'h3', 'h4', 'h5', 'h6'))) {
+            $out .= "\n" . str_repeat('-', 65) . "\n\n";
+        } else if ($this->name == 'td') {
+            $out .= "\t";
+        } else if ($this->name == 'li') {
+            $out .= "\n";
+        } else if ($this->name == 'ul') {
+            $out .= "\n";
         }
 
         return $out;

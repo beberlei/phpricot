@@ -23,7 +23,7 @@ the jQuery API.
 
 PHPricot is motivated by Rubys HPricot but only a distantly related port.
 
-## Installation
+## Installation of Required Libraries
 
 This currently a linux only installation guide (please contribute Windows or MacOS if
 you find the time).

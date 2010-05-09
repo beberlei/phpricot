@@ -28,6 +28,6 @@ class PHPricot_Nodes_Text extends PHPricot_Nodes_Node
 
     public function toText()
     {
-        return $this->text;
+        return str_replace("&nbsp;", " ", $this->text);
     }
 }

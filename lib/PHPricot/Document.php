@@ -35,6 +35,7 @@ class PHPricot_Document extends PHPricot_Nodes_Node
         foreach ($this->childNodes AS $node) {
             $txt .= $node->toText();
         }
-        return $txt;
+        $txt = preg_replace('(([\s]{3,}))', '  ', $txt);
+        return rtrim($txt);
     }
 }
