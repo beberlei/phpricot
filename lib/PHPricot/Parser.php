@@ -104,9 +104,9 @@ class PHPricot_Parser
     {
         $tag = strtolower($tag);
 
-        if (count($this->stack) == 0) {
+        /*if (count($this->stack) == 0) {
             return;
-        }
+        }*/
 
         $stackCopy = $this->stack;
         $currentCopy = $this->currentParent;
@@ -119,6 +119,7 @@ class PHPricot_Parser
         if (!$found) {
             $this->stack = $stackCopy;
             $this->currentParent = $currentCopy;
+            $this->currentParent->childNodes[] = new PHPricot_Nodes_BrokenCloseElement($tag);
             return;
         }
         

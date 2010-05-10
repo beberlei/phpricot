@@ -55,21 +55,21 @@ class PHPricot_ParserTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('<img />', $doc->childNodes[1]->toHtml());
     }
 
+    public function testKeepOverClosedElements()
+    {
+        $this->assertEquals('<div><p></p></p></p><p></p></div>', $this->p->parse('<div><p></p></p></p><p></p></div>')->toHtml());
+    }
+
+    public function testKeepBeginClose()
+    {
+        $this->assertEquals('</p>', $this->p->parse('</p>')->toHtml());
+    }
+
     public function testEkhtmlWebsite()
     {
         $html = file_get_contents(__DIR__ . "/_files/ekhtml.html");
         $doc = $this->p->parse($html);
         $this->assertEquals($html, $doc->toHtml());
-    }
-
-    public function testOverClose()
-    {
-        $this->assertEquals('<div><p></p><p></p></div>', $this->p->parse('<div><p></p></p></p><p></p></div>')->toHtml());
-    }
-
-    public function testBeginClose()
-    {
-        $this->assertEquals('', $this->p->parse('</p>')->toHtml());
     }
 
     public function testAttributeOrder()
@@ -81,8 +81,9 @@ class PHPricot_ParserTest extends PHPUnit_Framework_TestCase
 
     public function testContextNodes()
     {
-        $doc = $this->p->parse('<!-- BEGIN foo 1 --><p id="foo"><!-- END foo --><p id="bar">');
+        $doc = $this->p->parse('<!-- BEGIN foo 1 --><p id="foo"></p><!-- END foo --><p id="bar"></p>');
 
+        $this->assertEquals(4, count($doc->childNodes));
         foreach ($doc->childNodes AS $child) {
             if ($child instanceof PHPricot_Nodes_Element) {
                 $p = $child;
