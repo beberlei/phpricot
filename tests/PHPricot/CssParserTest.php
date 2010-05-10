@@ -12,7 +12,6 @@ class PHPricot_CssParserTest extends PHPUnit_Framework_TestCase
             array('table > * > td', 3, '<table><tr><td>foo</td><td>bar</td><td>baz</td></tr></table>'),
             array('a.foo', 1, '<a class="foo">bar</a><p class="foo">baz</p>'),
             array('a.foo', 1, '<a class="foo">bar</a><a class="bar">baz</a>'),
-            array('a.foo + .bar', 1, '<a class="foo bar">baz</a><a class="foo"></a><a class="bar"></a>'),
             array('a#foo', 1, '<a id="foo">bar</a><a id="baz">bar</a>'),
             array('a[title="baz"]', 1, '<a title="baz"></a><a></a><p title="baz"></p>'),
         );
@@ -21,6 +20,7 @@ class PHPricot_CssParserTest extends PHPUnit_Framework_TestCase
     static public function dataUnsupportedSelectors()
     {
         return array(
+            array('a.foo + .bar'),
             array('td.foo~td.bar'),
             array('a:active'),
             array('a::foo')

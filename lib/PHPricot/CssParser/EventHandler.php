@@ -33,7 +33,7 @@ class PHPricot_CssParser_EventHandler implements CssEventHandler
     }
 
     public function adjacent() {
-        // do nothing?
+        throw new InvalidArgumentException('PHPricot currently does not support CSS3 adjacent tokens.');
     }
 
     public function anotherSelector()
