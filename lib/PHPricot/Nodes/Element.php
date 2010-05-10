@@ -13,8 +13,25 @@
 
 class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
 {
+    /**
+     * The following elements are void, they close themselves and never contain children.
+     *
+     * @link http://dev.w3.org/html5/spec/Overview.html#void-elements
+     * @var array
+     */
     static private $selfClosing = array('base', 'meta', 'link', 'hr', 'br', 'param', 'img', 'area', 'input', 'col');
 
+    /**
+     * The following HTML elements are those that end up in the list of active formatting elements
+     *
+     * @link http://dev.w3.org/html5/spec/Overview.html#formatting
+     * @var array
+     */
+    static private $formatingCategory = array('a', 'b', 'big', 'code', 'em', 'font', 'i', 'nobr', 's', 'small', 'strike', 'strong', 'tt', 'u');
+
+    /**
+     * @var string
+     */
     public $name;
     public $attributes;
     public $contexts;
@@ -31,6 +48,11 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
         $this->name = $name;
         $this->attributes = $attributes;
         $this->contexts = $contexts;
+    }
+
+    public function isInFormattingCategory()
+    {
+        return in_array($this->name, self::$formatingCategory);
     }
 
     public function isSelfClosing()
