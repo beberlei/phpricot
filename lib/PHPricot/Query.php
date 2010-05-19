@@ -11,7 +11,7 @@
  * to kontakt@beberlei.de so I can send you a copy immediately.
  */
 
-class PHPricot_Query implements Countable
+class PHPricot_Query implements Countable, IteratorAggregate
 {
     /**
      * @var PHPricot_Document
@@ -322,5 +322,10 @@ class PHPricot_Query implements Countable
     public function count()
     {
         return count($this->doc->childNodes);
+    }
+
+    public function getIterator()
+    {
+        return new ArrayIterator($this->doc->childNodes);
     }
 }

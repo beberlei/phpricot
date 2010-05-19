@@ -1,0 +1,3 @@
+<phpunit bootstrap="./PHPricot/TestInit.php">
+    
+</phpunit>

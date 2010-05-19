@@ -231,4 +231,26 @@ ETT;
 
         $this->assertEquals($expected, $query->toHtml());
     }
+
+    public function testCountable()
+    {
+        $query = new PHPricot_Query('<div class="container">
+  <h2>Greetings</h2>
+  <div class="inner">Hello</div>
+  <div class="inner">Goodbye</div>
+</div>');
+
+        $this->assertEquals(1, count($query));
+    }
+
+    public function testIteratorAggregate()
+    {
+        $query = new PHPricot_Query('<p>foo</p><p>bar</p><p>baz</p>');
+
+        $count = 0;
+        foreach ($query AS $node) {
+            $count++;
+            $this->assertType('PHPricot_Nodes_Element', $node);
+        }
+    }
 }
