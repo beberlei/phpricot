@@ -277,6 +277,18 @@ class PHPricot_Query implements Countable, IteratorAggregate
         return $this;
     }
 
+    public function each(Closure $closure)
+    {
+        $elements = array();
+        foreach ($this->doc->childNodes AS $child) {
+            if ($child instanceof PHPricot_Nodes_Element) {
+                $closure($child);
+                $elements[] = $child;
+            }
+        }
+        return $elements;
+    }
+
     public function __invoke($args)
     {
         if (!isset($args[0])) {
