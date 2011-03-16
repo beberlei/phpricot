@@ -46,6 +46,17 @@ class PHPricot_QueryTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('<p test="val0"></p><p test="val1"></p>', $query->toHtml());
     }
 
+    public function testEachQuery()
+    {
+        $query = new PHPRicot_Query('<p>Foo</p><p>Bar</p>');
+        $i = 0;
+        $query->search('p')->each(function($el) use(&$i) {
+            $el->prepend('Baz');
+        });
+
+        $this->assertEquals('<p>BazFoo</p><p>BazBar</p>', $query->toHtml());
+    }
+
     public function testToggleClass()
     {
         $query = new PHPRicot_Query('<p class="foo baz"></p>');
