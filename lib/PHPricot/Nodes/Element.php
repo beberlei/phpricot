@@ -227,7 +227,12 @@ class PHPricot_Nodes_Element extends PHPricot_Nodes_Node
         }
         if ($attrs) {
             foreach ($attrs AS $name => $value) {
-                if ($this->attr($name) != $value) {
+                // matching for node existance, but it doesn't exist.
+                if ($value === null && $this->attr($name) === null) {
+                    return false;
+                }
+                // matching for node values not matching, but skipping node existance checks
+                if ($this->attr($name) != $value && !($value === null && $this->attr($name) !== null)) {
                     return false;
                 }
             }

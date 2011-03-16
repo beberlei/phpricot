@@ -65,4 +65,12 @@ class PHPricot_ElementTest extends PHPUnit_Framework_TestCase
         $tag->addClass('foo');
         $this->assertTrue($tag->hasClass('foo'));
     }
+
+    public function testMatchingHasAttribute()
+    {
+        $tag = new PHPricot_Nodes_Element('p', array('foo' => 'bar'));
+        $this->assertEquals('bar', $tag->attr('foo'));
+
+        $this->assertTrue($tag->matching(null, null, null, array('foo' => null)));
+    }
 }

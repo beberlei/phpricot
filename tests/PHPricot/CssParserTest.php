@@ -14,6 +14,10 @@ class PHPricot_CssParserTest extends PHPUnit_Framework_TestCase
             array('a.foo', 1, '<a class="foo">bar</a><a class="bar">baz</a>'),
             array('a#foo', 1, '<a id="foo">bar</a><a id="baz">bar</a>'),
             array('a[title="baz"]', 1, '<a title="baz"></a><a></a><p title="baz"></p>'),
+            array('*[data-category-id="1"]', 1, '<div data-category-id="1"></div><div data-category-id="2"></div>'),
+            array('*[data-category-id]', 2, '<div data-category-id="1"></div><div data-category-id="2"></div>'),
+            array('*[data-category-id]', 2, '<div data-category-id="1"></div><div data-category-id="2"></div><div></div>'),
+            array('div[data-category-id]', 1, '<div data-category-id="1"></div><p data-category-id="2"></p><div></div>'),
         );
     }
 
